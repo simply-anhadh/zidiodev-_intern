@@ -74,7 +74,7 @@ const AppRoutes: React.FC = () => {
 function App() {
   return (
     <Provider store={store}>
-      <Router>
+      <Router basename="/zidiodev-_intern">
         <div className="min-h-screen bg-gray-50">
           <AppRoutes />
         </div>
