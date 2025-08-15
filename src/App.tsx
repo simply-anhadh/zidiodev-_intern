@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { store } from './store';
 import { useAuth } from './hooks/useAuth';
@@ -74,7 +74,7 @@ const AppRoutes: React.FC = () => {
 function App() {
   return (
     <Provider store={store}>
-      <Router basename="/zidiodev-_intern">
+      <Router>
         <div className="min-h-screen bg-gray-50">
           <AppRoutes />
         </div>
