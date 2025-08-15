@@ -1,0 +1,1 @@
+// Charts routes scaffold
