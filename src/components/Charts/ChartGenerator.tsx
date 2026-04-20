@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useDispatch, useSelector } from 'react-redux';
 import { BarChart3, LineChart, PieChart, ScatterChart as Scatter, Box } from 'lucide-react';
@@ -20,6 +20,21 @@ const ChartGenerator: React.FC<ChartGeneratorProps> = ({ data = [], uploadId = '
   
   const dispatch = useDispatch<AppDispatch>();
   const { availableColumns, isGenerating, currentChart } = useSelector((state: RootState) => state.chart);
+
+  useEffect(() => {
+    if (availableColumns.length > 0) {
+      const xRegex = /date|name|category|product|id|month|year|region/i;
+      const bestX = availableColumns.find(col => xRegex.test(col)) || availableColumns[0];
+      
+      const yRegex = /sales|revenue|amount|price|count|value|total|profit|qty/i;
+      const availableForY = availableColumns.filter(col => col !== bestX);
+      const bestY = availableForY.find(col => yRegex.test(col)) || (availableForY.length > 0 ? availableForY[0] : availableColumns[0]);
+      
+      setSelectedXAxis(bestX);
+      setSelectedYAxis(bestY);
+      setChartTitle(`${bestY} by ${bestX}`);
+    }
+  }, [availableColumns, uploadId]);
 
   const chartTypes = [
     { id: '2d-bar', name: '2D Bar Chart', icon: BarChart3, description: 'Compare values across categories' },
