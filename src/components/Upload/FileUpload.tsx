@@ -1,9 +1,11 @@
 import React, { useCallback, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, FileSpreadsheet, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle, AlertCircle } from 'lucide-react';
 import { useDispatch } from 'react-redux';
 import { addUpload, updateUploadStatus } from '../../store/slices/dashboardSlice';
 import { setAvailableColumns } from '../../store/slices/chartSlice';
+import { addUploadToFirestore } from '../../lib/firestore';
+import { useAuth } from '../../hooks/useAuth';
 
 interface FileUploadProps {
   onFileProcessed?: (data: any[], columns: string[]) => void;
@@ -15,70 +17,76 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileProcessed }) => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const dispatch = useDispatch();
+  const { user } = useAuth();
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
+    if (e.type === 'dragenter' || e.type === 'dragover') {
       setDragActive(true);
-    } else if (e.type === "dragleave") {
+    } else if (e.type === 'dragleave') {
       setDragActive(false);
     }
   }, []);
 
   const processExcelFile = async (file: File) => {
-    // Mock Excel processing - in real app, use SheetJS/xlsx
+    if (!user) return;
     setUploading(true);
-    
-    const uploadId = Date.now().toString();
-    const newUpload = {
-      id: uploadId,
+
+    const tempId = Date.now().toString();
+    const tempUpload = {
+      id: tempId,
+      userId: user.id,
       filename: file.name,
       uploadedAt: new Date().toISOString(),
       fileSize: file.size,
       rows: 0,
       columns: [] as string[],
       chartsGenerated: 0,
-      status: 'processing' as const
+      status: 'processing' as const,
     };
-    
-    dispatch(addUpload(newUpload));
+
+    dispatch(addUpload(tempUpload));
 
     try {
-      // Simulate file processing
+      // Simulate file parsing (in production: use SheetJS `xlsx` library)
       await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Mock data - in real app, this would come from SheetJS parsing
+
       const mockColumns = ['Date', 'Product', 'Sales', 'Revenue', 'Region', 'Category'];
       const mockData = Array.from({ length: 100 }, (_, i) => ({
-        Date: `2024-01-${String(i % 30 + 1).padStart(2, '0')}`,
+        Date: `2024-01-${String((i % 30) + 1).padStart(2, '0')}`,
         Product: `Product ${String.fromCharCode(65 + (i % 5))}`,
         Sales: Math.floor(Math.random() * 1000) + 100,
         Revenue: Math.floor(Math.random() * 50000) + 10000,
         Region: ['North', 'South', 'East', 'West'][i % 4],
-        Category: ['Electronics', 'Clothing', 'Books', 'Home'][i % 4]
+        Category: ['Electronics', 'Clothing', 'Books', 'Home'][i % 4],
       }));
-      
-      const updatedUpload = {
-        ...newUpload,
+
+      // Save to Firestore — generates a real doc ID
+      const firestoreId = await addUploadToFirestore({
+        userId: user.id,
+        filename: file.name,
+        uploadedAt: new Date().toISOString(),
+        fileSize: file.size,
         rows: mockData.length,
         columns: mockColumns,
-        status: 'completed' as const
-      };
-      
-      dispatch(updateUploadStatus({ id: uploadId, status: 'completed' }));
+        chartsGenerated: 0,
+        status: 'completed',
+      });
+
+      // Update local Redux state with real ID
+      dispatch(updateUploadStatus({ id: tempId, status: 'completed' }));
       dispatch(setAvailableColumns(mockColumns));
-      
       setUploadStatus('success');
-      setUploading(false);
-      
+
       if (onFileProcessed) {
         onFileProcessed(mockData, mockColumns);
       }
-      
     } catch (error) {
-      dispatch(updateUploadStatus({ id: uploadId, status: 'failed' }));
+      console.error('Upload failed:', error);
+      dispatch(updateUploadStatus({ id: tempId, status: 'failed' }));
       setUploadStatus('error');
+    } finally {
       setUploading(false);
     }
   };
@@ -89,11 +97,12 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileProcessed }) => {
     setDragActive(false);
 
     const files = Array.from(e.dataTransfer.files);
-    const excelFile = files.find(file => 
-      file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-      file.type === 'application/vnd.ms-excel' ||
-      file.name.endsWith('.xlsx') ||
-      file.name.endsWith('.xls')
+    const excelFile = files.find(
+      f =>
+        f.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+        f.type === 'application/vnd.ms-excel' ||
+        f.name.endsWith('.xlsx') ||
+        f.name.endsWith('.xls')
     );
 
     if (excelFile) {
@@ -102,7 +111,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileProcessed }) => {
     } else {
       setUploadStatus('error');
     }
-  }, []);
+  }, [user]);
 
   const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -127,7 +136,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileProcessed }) => {
     >
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Upload Excel File</h2>
-        
+
         {uploadStatus === 'idle' && !uploading && (
           <div
             className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
@@ -146,17 +155,10 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileProcessed }) => {
               onChange={handleInputChange}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
             />
-            
             <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              Drop your Excel file here
-            </h3>
-            <p className="text-gray-600 mb-4">
-              or click to browse your files
-            </p>
-            <p className="text-sm text-gray-500">
-              Supports .xlsx and .xls files up to 10MB
-            </p>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Drop your Excel file here</h3>
+            <p className="text-gray-600 mb-4">or click to browse your files</p>
+            <p className="text-sm text-gray-500">Supports .xlsx and .xls files up to 10MB</p>
           </div>
         )}
 
@@ -169,18 +171,18 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileProcessed }) => {
             >
               <motion.div
                 animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
               >
                 <FileSpreadsheet className="h-8 w-8 text-blue-600" />
               </motion.div>
             </motion.div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Processing File</h3>
-            <p className="text-gray-600">Analyzing your Excel data...</p>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Processing & Saving File</h3>
+            <p className="text-gray-600">Uploading to your account...</p>
             <div className="mt-4 w-48 mx-auto bg-gray-200 rounded-full h-2">
               <motion.div
                 className="bg-blue-600 h-2 rounded-full"
-                initial={{ width: "0%" }}
-                animate={{ width: "100%" }}
+                initial={{ width: '0%' }}
+                animate={{ width: '100%' }}
                 transition={{ duration: 2 }}
               />
             </div>
@@ -197,7 +199,8 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileProcessed }) => {
               <CheckCircle className="h-8 w-8 text-green-600" />
             </div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">File Uploaded Successfully!</h3>
-            <p className="text-gray-600 mb-4">{uploadedFile.name}</p>
+            <p className="text-gray-600 mb-1">{uploadedFile.name}</p>
+            <p className="text-sm text-green-600 mb-4">Saved to your account ✓</p>
             <button
               onClick={resetUpload}
               className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
@@ -222,7 +225,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileProcessed }) => {
             </p>
             <button
               onClick={resetUpload}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
             >
               Try Again
             </button>

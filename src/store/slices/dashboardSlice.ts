@@ -1,60 +1,38 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-
-interface Upload {
-  id: string;
-  filename: string;
-  uploadedAt: string;
-  fileSize: number;
-  rows: number;
-  columns: string[];
-  chartsGenerated: number;
-  status: 'processing' | 'completed' | 'failed';
-}
+import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { getUserUploads, FirestoreUpload } from '../../lib/firestore';
 
 interface DashboardState {
-  uploads: Upload[];
+  uploads: FirestoreUpload[];
   totalUploads: number;
   totalCharts: number;
   storageUsed: number;
+  activeUsers: number;
   isLoading: boolean;
   error: string | null;
 }
 
 const initialState: DashboardState = {
-  uploads: [
-    {
-      id: '1',
-      filename: 'sales_data_2024.xlsx',
-      uploadedAt: '2024-01-15T10:30:00Z',
-      fileSize: 245760,
-      rows: 1500,
-      columns: ['Date', 'Product', 'Sales', 'Revenue', 'Region'],
-      chartsGenerated: 3,
-      status: 'completed'
-    },
-    {
-      id: '2',
-      filename: 'customer_analytics.xlsx',
-      uploadedAt: '2024-01-14T15:45:00Z',
-      fileSize: 189440,
-      rows: 850,
-      columns: ['Customer ID', 'Age', 'Gender', 'Purchase Amount', 'Category'],
-      chartsGenerated: 2,
-      status: 'completed'
-    }
-  ],
-  totalUploads: 2,
-  totalCharts: 5,
-  storageUsed: 435200,
+  uploads: [],
+  totalUploads: 0,
+  totalCharts: 0,
+  storageUsed: 0,
+  activeUsers: 0,
   isLoading: false,
   error: null,
 };
 
 export const fetchDashboardData = createAsyncThunk(
   'dashboard/fetchData',
-  async () => {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    return initialState;
+  async (userId: string) => {
+    const uploads = await getUserUploads(userId);
+    const totalCharts = uploads.reduce((sum, u) => sum + (u.chartsGenerated || 0), 0);
+    const storageUsed = uploads.reduce((sum, u) => sum + (u.fileSize || 0), 0);
+    return {
+      uploads,
+      totalUploads: uploads.length,
+      totalCharts,
+      storageUsed,
+    };
   }
 );
 
@@ -62,25 +40,33 @@ const dashboardSlice = createSlice({
   name: 'dashboard',
   initialState,
   reducers: {
-    addUpload: (state, action) => {
+    addUpload: (state, action: PayloadAction<FirestoreUpload>) => {
       state.uploads.unshift(action.payload);
       state.totalUploads += 1;
+      state.storageUsed += action.payload.fileSize;
     },
-    updateUploadStatus: (state, action) => {
+    updateUploadStatus: (state, action: PayloadAction<{ id: string; status: FirestoreUpload['status'] }>) => {
       const upload = state.uploads.find(u => u.id === action.payload.id);
       if (upload) {
         upload.status = action.payload.status;
       }
+    },
+    setActiveUsers: (state, action: PayloadAction<number>) => {
+      state.activeUsers = action.payload;
     },
   },
   extraReducers: (builder) => {
     builder
       .addCase(fetchDashboardData.pending, (state) => {
         state.isLoading = true;
+        state.error = null;
       })
       .addCase(fetchDashboardData.fulfilled, (state, action) => {
         state.isLoading = false;
-        Object.assign(state, action.payload);
+        state.uploads = action.payload.uploads;
+        state.totalUploads = action.payload.totalUploads;
+        state.totalCharts = action.payload.totalCharts;
+        state.storageUsed = action.payload.storageUsed;
       })
       .addCase(fetchDashboardData.rejected, (state, action) => {
         state.isLoading = false;
@@ -89,5 +75,5 @@ const dashboardSlice = createSlice({
   },
 });
 
-export const { addUpload, updateUploadStatus } = dashboardSlice.actions;
+export const { addUpload, updateUploadStatus, setActiveUsers } = dashboardSlice.actions;
 export default dashboardSlice.reducer;

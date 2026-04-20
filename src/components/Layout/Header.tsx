@@ -1,18 +1,17 @@
 import React from 'react';
-import { useDispatch } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
+import { useClerk } from '@clerk/clerk-react';
 import { Menu, Transition } from '@headlessui/react';
 import { BarChart3, User, LogOut, Settings, ChevronDown } from 'lucide-react';
-import { logout } from '../../store/slices/authSlice';
 import { useAuth } from '../../hooks/useAuth';
 
 const Header: React.FC = () => {
-  const dispatch = useDispatch();
+  const { signOut } = useClerk();
   const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
 
-  const handleLogout = () => {
-    dispatch(logout());
+  const handleLogout = async () => {
+    await signOut();
     navigate('/login');
   };
 
@@ -61,7 +60,7 @@ const Header: React.FC = () => {
               <div>
                 <Menu.Button className="inline-flex w-full justify-center items-center gap-x-1.5 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
                   <User className="h-5 w-5 text-gray-400" />
-                  {user?.name}
+                  <span className="max-w-[140px] truncate">{user?.name || '...'}</span>
                   <ChevronDown className="-mr-1 h-5 w-5 text-gray-400" />
                 </Menu.Button>
               </div>
@@ -76,19 +75,15 @@ const Header: React.FC = () => {
               >
                 <Menu.Items className="absolute right-0 z-10 mt-2 w-56 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
                   <div className="py-1">
-                    <Menu.Item>
-                      {({ active }) => (
-                        <Link
-                          to="/profile"
-                          className={`${
-                            active ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
-                          } group flex items-center px-4 py-2 text-sm`}
-                        >
-                          <Settings className="mr-3 h-5 w-5 text-gray-400" />
-                          Profile Settings
-                        </Link>
+                    <div className="px-4 py-2 border-b border-gray-100">
+                      <p className="text-xs font-medium text-gray-500">Signed in as</p>
+                      <p className="text-sm text-gray-900 truncate">{user?.email}</p>
+                      {isAdmin && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 mt-1">
+                          Admin
+                        </span>
                       )}
-                    </Menu.Item>
+                    </div>
                     <Menu.Item>
                       {({ active }) => (
                         <button

@@ -20,11 +20,11 @@ const AppRoutes: React.FC = () => {
     <Routes>
       {/* Public Routes */}
       <Route
-        path="/login"
+        path="/login/*"
         element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginForm />}
       />
       <Route
-        path="/register"
+        path="/register/*"
         element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <RegisterForm />}
       />
 
