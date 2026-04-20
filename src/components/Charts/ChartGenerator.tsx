@@ -7,7 +7,12 @@ import { generateChart } from '../../store/slices/chartSlice';
 import { AppDispatch } from '../../store';
 import ChartDisplay from './ChartDisplay';
 
-const ChartGenerator: React.FC = () => {
+interface ChartGeneratorProps {
+  data?: any[];
+  uploadId?: string;
+}
+
+const ChartGenerator: React.FC<ChartGeneratorProps> = ({ data = [], uploadId = 'mock-upload-id' }) => {
   const [selectedType, setSelectedType] = useState<'2d-bar' | '2d-line' | '2d-pie' | '2d-scatter' | '3d-column'>('2d-bar');
   const [selectedXAxis, setSelectedXAxis] = useState('');
   const [selectedYAxis, setSelectedYAxis] = useState('');
@@ -27,8 +32,8 @@ const ChartGenerator: React.FC = () => {
   const handleGenerateChart = async () => {
     if (!selectedXAxis || !selectedYAxis || !chartTitle) return;
 
-    // Mock data generation - in real app, this would process actual Excel data
-    const mockData = Array.from({ length: 20 }, (_, i) => ({
+    // Use actual data if provided, otherwise fallback to mock
+    const chartData = data.length > 0 ? data : Array.from({ length: 20 }, (_, i) => ({
       [selectedXAxis]: `Item ${i + 1}`,
       [selectedYAxis]: Math.floor(Math.random() * 100) + 10,
     }));
@@ -38,9 +43,18 @@ const ChartGenerator: React.FC = () => {
       title: chartTitle,
       xAxis: selectedXAxis,
       yAxis: selectedYAxis,
-      uploadId: 'mock-upload-id',
-      data: mockData,
+      uploadId: uploadId,
+      data: chartData,
     }));
+
+    if (uploadId && uploadId !== 'mock-upload-id') {
+      try {
+        const { incrementChartsGenerated } = await import('../../lib/firestore');
+        await incrementChartsGenerated(uploadId);
+      } catch (err) {
+        console.error("Failed to increment chart counter", err);
+      }
+    }
   };
 
   if (availableColumns.length === 0) {

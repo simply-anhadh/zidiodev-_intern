@@ -9,9 +9,12 @@ const Upload: React.FC = () => {
   const [processedData, setProcessedData] = useState<any[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
 
-  const handleFileProcessed = (data: any[], cols: string[]) => {
+  const [currentUploadId, setCurrentUploadId] = useState<string>('');
+
+  const handleFileProcessed = (data: any[], cols: string[], uploadId?: string) => {
     setProcessedData(data);
     setColumns(cols);
+    if (uploadId) setCurrentUploadId(uploadId);
     setFileProcessed(true);
   };
 
@@ -33,7 +36,7 @@ const Upload: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <ChartGenerator />
+            <ChartGenerator data={processedData} uploadId={currentUploadId} />
           </motion.div>
         )}
       </div>

@@ -8,7 +8,7 @@ import { addUploadToFirestore } from '../../lib/firestore';
 import { useAuth } from '../../hooks/useAuth';
 
 interface FileUploadProps {
-  onFileProcessed?: (data: any[], columns: string[]) => void;
+  onFileProcessed?: (data: any[], columns: string[], uploadId?: string) => void;
 }
 
 const FileUpload: React.FC<FileUploadProps> = ({ onFileProcessed }) => {
@@ -80,7 +80,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileProcessed }) => {
       setUploadStatus('success');
 
       if (onFileProcessed) {
-        onFileProcessed(mockData, mockColumns);
+        onFileProcessed(mockData, mockColumns, firestoreId);
       }
     } catch (error) {
       console.error('Upload failed:', error);
